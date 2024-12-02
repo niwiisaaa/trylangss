@@ -8,7 +8,7 @@ section .data
          db "[4] Delete Task", 10, 0
     
     choice_prompt db "Enter your choice (0-4): ", 0
-    new_task_prompt db "Enter a task: ", 0
+    new_task_prompt db "Enter a task to add: ", 0
     task_number_prompt db "Enter task number: ", 0
     
     display_tasks_msg db 10, "==== Current To-Do List ====", 10, 0
@@ -27,23 +27,26 @@ section .data
     
     num_format db "%d", 0
     str_format db "%s", 10, 0
-    
-    MAX_TASKS equ 8
+
+    task_count dd 1 ; task count (how many tasks)
+
+    MAX_TASKS equ 8 ; max number of task in the list
+    TASK_SIZE equ 128 ; 127 character limit (excluding null terminator) to each task
 
 section .bss
     choice resb 1        ; choice is a byte (user input)
     
-    task resb 128   ; temporary storage for task description
-    task_list resb 128 * MAX_TASKS  ; array for task descriptions
+    task resb TASK_SIZE   ; temporary storage for task description
+    task_list resb TASK_SIZE * MAX_TASKS  ; array for task descriptions
     task_status resb MAX_TASKS ; status for each task
     
-    task_count resd 1    ; task count (how many tasks)
     task_number resd 1   ; task number input (for completing or deleting)
 
 section .text
     global _main
     extern _printf 
     extern _scanf
+    extern _getchar
 
 _main:
     ; display greetings
@@ -72,6 +75,7 @@ _main:
         cmp al, 4
         je case_4
 
+
         push invalid_choice_msg
         call _printf
         add esp, 8
@@ -86,18 +90,37 @@ _main:
             ret
 
         case_1:
+            push new_task_prompt
+            call _printf
+            add esp, 4
 
+            push task
+            push str_format
+            call _scanf
+            add esp, 8
+
+            push task
+            call append_new_task
 
         case_2:
-
+            call display_all
 
         case_3:
 
 
         case_4:
-            
+
 
         jmp main_loop_start
+
+clear_buffer:
+    clear_input_buffer:
+        ; read and discard characters until newline
+        call _getchar
+        cmp eax, 10
+        jne clear_input_buffer
+
+    ret
 
 input_choice:
     ; display choice prompt
@@ -113,3 +136,40 @@ input_choice:
     mov al, byte[choice]
     
     ret
+
+append_new_task:
+    mov ebp, esp
+
+    ; calculate the offset in task_list
+    mov eax, [task_count]
+    dec eax  ; subtract 1 to start index from 0
+    mov ebx, TASK_SIZE
+    mul ebx 
+
+    ; source address of the new task
+    mov esi, [ebp + 8] ; new task to append
+
+    ; destination address in task_list
+    mov edi, task_list
+    add edi, eax
+
+    ; copy task to task_list
+    mov ecx, TASK_SIZE
+    rep movsb
+
+    ; set task status to pending (0)
+    mov eax, [task_count]
+    dec eax
+    mov byte [task_status + eax], 0
+
+    ; print success message
+    push task_added_msg
+    call _printf
+    add esp, 4
+    
+    mov esp, ebp
+    ret
+
+display_all:
+    ret
+
