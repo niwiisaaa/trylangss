@@ -1,6 +1,14 @@
+;˜”*°•.˜”*°• CS 318 - ARCHITECTURE AND ORGANIZATION | LEARNING TASK #3 •°*”˜" •°*”˜"
+;                                  GROUP 6 | BSCS -3A
+
 section .data
     greetings db "Welcome to the To-Do List Manager!", 10, 0
-    menu db 10, "=== To-Do List Manager ===", 10, "[0] Exit", 10, "[1] Add Task", 10, "[2] Display Tasks", 10, "[3] Mark Task as Completed", 10, "[4] Delete Task", 10, 0
+    menu db 10, "=== To-Do List Manager ===", 10, 
+        db "[0] Exit", 10, 
+        db "[1] Add Task", 10, 
+        db "[2] Display Tasks", 10, 
+        db "[3] Mark Task as Completed", 10, 
+        db "[4] Delete Task", 10, 0
     exit_msg db "Thank you for using the To-Do List Manager!", 10, 0
     choice_prompt db "Enter your choice (0-4): ", 0
     add_prompt db "Enter a task: ", 0
@@ -12,6 +20,7 @@ section .data
     task_deleted_msg db "Task deleted successfully.", 10, 0
     task_limit_msg db "Task limit reached. Cannot add more tasks.", 10, 0
     task_number_prompt db "Enter task number: ", 0
+    task_delete db "Enter task number to delete: ", 0
     invalid_task_number_msg db "Invalid task number. Try again.", 10, 0
     pending_status db " [Pending]", 10, 0
     completed_status db " [Completed]", 10, 0
@@ -29,7 +38,7 @@ section .bss
 
 section .text
     global _main
-    extern _printf, _scanf, _exit, _strlen, _strcpy
+    extern _printf, _scanf, _exit, _strlen, _strcpy, _getchar
 
 _main:
     ; display the greeting message
@@ -78,6 +87,9 @@ _main:
             call _scanf
             add esp, 8
 
+            ; Clear input buffer
+            call clear_input_buffer
+
             ; Check task limit
             mov eax, [task_count]
             cmp eax, max_tasks
@@ -98,13 +110,17 @@ _main:
             lea eax, [task_added_msg]
             call print_string
 
-            ; Return to menu
+            ; Redisplay menu after task addition
             jmp main_loop_start
 
         task_limit_reached:
+            ; Inform the user that the task limit is reached
             lea eax, [task_limit_msg]
             call print_string
+
+            ; Redisplay menu even if the task limit is reached
             jmp main_loop_start
+
 
         case_2:
             ; Display the tasks
@@ -186,7 +202,7 @@ _main:
 
         case_4:
             ; Delete a task by its number
-            lea eax, [task_number_prompt]
+            lea eax, [task_delete]
             call print_string
             push task_number
             push dword char_format
@@ -260,4 +276,18 @@ input_choice:
     push dword char_format
     call _scanf
     add esp, 8
+
+    ; Clear input buffer
+    call clear_input_buffer
+    ret
+
+clear_input_buffer:
+    ; Loop to read and discard any extra characters in the input buffer
+    .loop:
+        mov eax, 0  ; prepare for getchar-like input
+        push eax
+        call _getchar  ; use getchar to read a character
+        add esp, 4
+        cmp al, 10     ; check if the character is a newline (\n)
+        jne .loop      ; if not, keep reading
     ret
