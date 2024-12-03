@@ -1,6 +1,6 @@
 section .data
     greetings db "Welcome to the To-Do List Manager!", 10, 0
-    menu db "=== To-Do List Manager ===", 10, 
+    menu db 10, "=== To-Do List Manager ===", 10, 
          db "[0] Exit", 10, 
          db "[1] Add Task", 10, 
          db "[2] Display Tasks", 10, 
@@ -8,7 +8,7 @@ section .data
          db "[4] Delete Task", 10, 0
     
     choice_prompt db "Enter your choice (0-4): ", 0
-    new_task_prompt db "Enter a task to add: ", 0
+    new_task_prompt db 10, "Enter a task to add (add a period to finish input): ", 10, 0
     task_number_prompt db "Enter task number: ", 0
     
     display_tasks_msg db 10, "==== Current To-Do List ====", 10, 0
@@ -22,24 +22,21 @@ section .data
     invalid_choice_msg db "Invalid choice. Please try again.", 10, 0
     invalid_task_number_msg db "Invalid task number. Try again.", 10, 0
 
-    pending_status db " [Pending]", 10, 0
-    completed_status db " [Completed]", 10, 0
-    
+    pending_status db "%d. %s (Pending)", 10, 0
+    completed_status db "%d. %s (Completed)", 10, 0
+    no_display_format db "%d.", 10, 0
     num_format db "%d", 0
-    str_format db "%s", 10, 0
-
-    task_count dd 1 ; task count (how many tasks)
+    input_format db "%[^.]", 0
 
     MAX_TASKS equ 8 ; max number of task in the list
     TASK_SIZE equ 128 ; 127 character limit (excluding null terminator) to each task
 
 section .bss
     choice resb 1        ; choice is a byte (user input)
-    
     task resb TASK_SIZE   ; temporary storage for task description
     task_list resb TASK_SIZE * MAX_TASKS  ; array for task descriptions
     task_status resb MAX_TASKS ; status for each task
-    
+    task_count resd 1 ; the current number of tasks
     task_number resd 1   ; task number input (for completing or deleting)
 
 section .text
@@ -54,6 +51,9 @@ _main:
     call _printf
     add esp, 4
 
+    ; initialize number of task to 0
+    mov dword[task_count], 0
+
     main_loop_start:
         ; display menu
         push menu
@@ -61,26 +61,26 @@ _main:
         add esp, 4
 
         choice_input:
-        ; ask user for choice, store in al
-        call input_choice
+            ; ask user for choice, store in al
+            call input_choice
 
-        cmp al, 0
-        je case_0
-        cmp al, 1
-        je case_1
-        cmp al, 2
-        je case_2
-        cmp al, 3
-        je case_3
-        cmp al, 4
-        je case_4
+            mov al, byte[choice]
+            cmp al, 0
+            je case_0
+            cmp al, 1
+            je case_1
+            cmp al, 2
+            je case_2
+            cmp al, 3
+            je case_3
+            cmp al, 4
+            je case_4
 
+            push invalid_choice_msg
+            call _printf
+            add esp, 8
 
-        push invalid_choice_msg
-        call _printf
-        add esp, 8
-
-        jmp choice_input
+            jmp choice_input
 
         case_0:
             push exit_msg
@@ -95,23 +95,37 @@ _main:
             add esp, 4
 
             push task
-            push str_format
+            push input_format
             call _scanf
             add esp, 8
 
+            call clear_buffer
+
             push task
             call append_new_task
+            add esp, 4
+
+            jmp main_loop_start
 
         case_2:
-            call display_all
+            ; check if there is no task
+            cmp dword[task_count], 0
+            jne proceed_display
 
+            ; display prompt is none
+            push no_tasks_msg
+            call _printf
+            add esp, 4
+            jmp main_loop_start
+
+            proceed_display:
+            call display_all_task ; display all tasks
+
+            jmp main_loop_start
         case_3:
 
 
         case_4:
-
-
-        jmp main_loop_start
 
 clear_buffer:
     clear_input_buffer:
@@ -123,53 +137,149 @@ clear_buffer:
     ret
 
 input_choice:
-    ; display choice prompt
-    push choice_prompt
-    call _printf
-    add esp, 4
+    ; create stack frame
+    mov ebp, esp
 
-    push choice
-    push num_format
-    call _scanf
-    add esp, 8
+    start_input:
+        ; display prompt
+        push choice_prompt
+        call _printf
+        add esp, 4
 
-    mov al, byte[choice]
-    
-    ret
+        ; get input for choice
+        push choice
+        push num_format
+        call _scanf
+        add esp, 8
+
+        ; check if user entered a non-numeric value
+        cmp eax, 1
+        jne invalid_choice
+
+        ; check if input is within range
+        cmp dword [choice], 0
+        jl invalid_choice
+        cmp dword [choice], 4
+        jg invalid_choice
+
+        ; destroy stack frame and return to caller
+        mov esp, ebp
+        ret
+
+    invalid_choice:
+        ; clear buffer if input fails
+        call clear_buffer
+
+        ; display error message
+        push invalid_choice_msg
+        call _printf
+        add esp, 4
+
+        ; loop back to start of input
+        jmp start_input
 
 append_new_task:
     mov ebp, esp
+    
+    ; check if maximum number of task is reached
+    cmp ecx, MAX_TASKS
+    jne proceed_append
 
-    ; calculate the offset in task_list
-    mov eax, [task_count]
-    dec eax  ; subtract 1 to start index from 0
-    mov ebx, TASK_SIZE
-    mul ebx 
+    ; display task limit message
+    push task_limit_msg
+    call _printf
+    add esp, 4
+    jmp skip_append
 
-    ; source address of the new task
-    mov esi, [ebp + 8] ; new task to append
+    proceed_append:
+    ; Store task description
+    mov ecx, dword[task_count] ; current number of task
+    mov eax, TASK_SIZE
+    mul ecx
+    lea edi, [task_list + eax] ; address of task_list as destination
+    mov esi, [ebp + 4] ; address of task as source
+    
+    add esi, 1 ; exclude the newline at the beginning
+    
+    push ecx ; preserve ecx value to stack
 
-    ; destination address in task_list
-    mov edi, task_list
-    add edi, eax
-
-    ; copy task to task_list
     mov ecx, TASK_SIZE
-    rep movsb
+    rep movsb ; mov the content from source to destination
+    
+    pop ecx ; restore ecx value
 
-    ; set task status to pending (0)
-    mov eax, [task_count]
-    dec eax
-    mov byte [task_status + eax], 0
+    ; Mark task as pending (0)
+    mov byte [task_status + ecx], 0
+    inc dword [task_count]
 
     ; print success message
     push task_added_msg
     call _printf
     add esp, 4
     
+    skip_append:
     mov esp, ebp
     ret
 
-display_all:
+display_all_task:
+    push display_tasks_msg
+    call _printf
+    add esp, 4
+
+    mov ebx, 1
+    lea esi, [task_list]
+
+    display_loop_start:
+        cmp ebx, MAX_TASKS
+        jg display_done
+
+        push esi
+        mov eax, 0
+        lodsb ; store first character in esi to al
+        pop esi
+
+        cmp al, 0
+        je display_empty
+
+        ; check for task status
+        dec ebx
+        mov eax, [task_status + ebx] 
+        inc ebx
+        cmp eax, 0
+        je display_pending
+
+        ; display completed tasks
+        push esi
+        push ebx
+        push completed_status
+        call _printf
+        add esp, 12
+
+        jmp next_display
+
+        display_pending:
+            ; display pending tasks
+            push esi
+            push ebx
+            push pending_status
+            call _printf
+            add esp, 12
+
+            jmp next_display
+
+        display_empty:
+            ; display pending tasks
+            push ebx
+            push no_display_format
+            call _printf
+            add esp, 8
+
+        next_display:
+        inc ebx
+        add esi, TASK_SIZE ; move to the next task
+
+        jmp display_loop_start
+
+    display_done:
     ret
 

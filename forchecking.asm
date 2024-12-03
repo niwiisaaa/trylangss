@@ -38,7 +38,7 @@ section .bss
 
 section .text
     global _main
-    extern _printf, _scanf, _exit, _strlen, _strcpy, _getchar
+    extern _printf, _scanf, _getchar
 
 _main:
     ; display the greeting message
@@ -75,7 +75,8 @@ _main:
             push exit_msg
             call _printf
             add esp, 4
-            call _exit  ; Exit the program
+            
+            ret  ; Exit the program
 
         case_1:
             ; Add a new task
@@ -279,6 +280,7 @@ input_choice:
 
     ; Clear input buffer
     call clear_input_buffer
+    mov eax, -1
     ret
 
 clear_input_buffer:
