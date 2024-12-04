@@ -37,8 +37,8 @@ section .bss
     task resb TASK_SIZE   ; temporary storage for task description
     task_list resb TASK_SIZE * MAX_TASKS  ; array for task descriptions
     task_status resb MAX_TASKS ; status for each task
-    task_count resd 2     ; the current number of tasks
-    task_number resd 2    ; task number input (for completing or deleting)
+    task_count resd 1     ; the current number of tasks
+    task_number resd 1    ; task number input (for completing or deleting)
 
 section .text
     global _main
@@ -124,8 +124,11 @@ _main:
 
             jmp main_loop_start
         case_3:
-            call display_all_task 
+            cmp byte[task_count], 0
+            je no_task_to_mark
             
+            call display_all_task 
+
             input_number:
             ; display prompt for task number
             push task_number_prompt
@@ -182,8 +185,60 @@ _main:
 
                 jmp main_loop_start
 
-        case_4:
+            no_task_to_mark:
+                ; display prompt for empty list
+                push no_tasks_msg
+                call _printf
+                add esp, 4
 
+                jmp main_loop_start
+
+        case_4:
+            cmp byte[task_count], 0
+            je no_task_to_delete
+
+            ; display task number prompt
+            push task_number_prompt
+            call _printf
+            add esp, 4
+
+            ; accept input for task number
+            push task_number
+            push num_format
+            call _scanf
+            add esp, 8
+
+            ; check for valid task number
+            mov eax, dword[task_count]
+            cmp dword[task_number], 0
+            jle invalid_delete
+            cmp dword[task_number], eax
+            jg invalid_delete
+
+            ; delete task at corresponding task number
+            push dword[task_number]
+            call delete_task
+
+            ; re-arrange tasks after deletion
+            push task_list
+            call rearrange_tasks
+
+            jmp main_loop_start
+
+            invalid_delete:
+                push invalid_task_number_msg
+                call _printf
+                add esp, 4
+                
+                jmp case_4
+
+            no_task_to_delete:
+                ; display prompt for empty list
+                push no_tasks_msg
+                call _printf
+                add esp, 4
+
+                jmp main_loop_start
 
 clear_buffer:
     clear_input_buffer:
@@ -317,7 +372,7 @@ display_all_task:
             jmp next_display
 
         display_empty:
-            ; display pending tasks
+            ; display empty task slots
             inc ebx
             push ebx
             push no_display_format
@@ -332,3 +387,41 @@ display_all_task:
     display_done:
     ret
 
+delete_task:
+    mov ebp, esp
+
+    mov ebx, [ebp + 4] ; number of task to delete
+    
+    ; calculate the address of task to be deleted
+    mov ecx, ebx
+    dec ecx
+    mov eax, TASK_SIZE
+    mul ecx
+    lea edi, [task_list + eax] ; store the address to edi
+
+    ; mov 0 as the first character of the string in the address
+    mov al, 0
+    stosb
+
+    ; decrement task count
+    dec dword[task_count]
+
+    ; display after delete message
+    push ebx
+    push task_deleted_msg
+    call _printf
+    add esp, 4
+
+    mov esp, ebp
+    ret
+
+rearrange_tasks:
+    mov ebp, esp
+
+    mov edi, dword[ebp + 4] ; task list to re-arrange
+    
+    ; TODO: implement re-arrange after delete
+
+    check_loop_done:
+    mov esp, ebp
+    ret
