@@ -108,18 +108,20 @@ _main:
             cmp eax, 1
             jne invalid_insert
                 
-            ; check if task at selected position is empty
+            ; check for invalid number input
             mov ebx, [task_number]
+            cmp ebx, 1
+            jl invalid_insert
+            cmp ebx, MAX_TASKS
+            jg invalid_insert
+            
+            ; check if task at selected position is empty
             dec ebx ; index start from 0
             mov eax, TASK_SIZE
             mul ebx
             lea esi, [task_list + eax]
             cmp byte[esi], 0
             jne invalid_insert
-            cmp ebx, 0
-            jl invalid_insert
-            cmp ebx, 8
-            jg invalid_insert
 
             push new_task_prompt
             call _printf
@@ -190,26 +192,31 @@ _main:
             call _scanf
             add esp, 8
 
-            ; store task number and task count to registers for comparison
-            mov eax, dword[task_number]
-            mov ebx, dword[task_count]
+            mov ebx, dword[task_number]
 
             ; compare if task number is within the task list range
-            cmp eax, 1
+            cmp ebx, 1
             jl invalid_number
-            cmp eax, ebx
+            cmp ebx, MAX_TASKS
             jg invalid_number
 
+            ; check if task at selected position is empty
+            dec ebx ; index start from 0
+            mov eax, TASK_SIZE
+            mul ebx
+            lea esi, [task_list + eax]
+            cmp byte[esi], 0
+            je invalid_number
+
             ; check if the selected task is already complete
-            dec eax
-            cmp byte[task_status + eax], 1
+            cmp byte[task_status + ebx], 1
             je already_marked
 
-            mov byte[task_status + eax], 1 ; if not, mark task as completed (1)
+            mov byte[task_status + ebx], 1 ; if not, mark task as completed (1)
             
             ; display completed task prompt
-            inc eax
-            push eax
+            inc ebx
+            push ebx
             push task_completed_msg
             call _printf
             add esp, 4
@@ -257,12 +264,21 @@ _main:
             call _scanf
             add esp, 8
 
-            ; check for valid task number
-            mov eax, dword[task_count]
-            cmp dword[task_number], 0
-            jle invalid_delete
-            cmp dword[task_number], eax
+            mov ebx, dword[task_number]
+
+            ; compare if task number is within the task list range
+            cmp ebx, 1
+            jl invalid_delete
+            cmp ebx, MAX_TASKS
             jg invalid_delete
+
+            ; check if task at selected position is empty
+            dec ebx ; index start from 0
+            mov eax, TASK_SIZE
+            mul ebx
+            lea esi, [task_list + eax]
+            cmp byte[esi], 0
+            je invalid_delete
 
             ; delete task at corresponding task number
             push dword[task_number]
