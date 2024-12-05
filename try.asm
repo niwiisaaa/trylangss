@@ -91,10 +91,41 @@ _main:
             ret
 
         case_1:
+            cmp byte[task_count], MAX_TASKS
+            jge no_space
+
+            ; display task number prompt
+            push task_number_prompt
+            call _printf
+            add esp, 4
+
+            ; accept input for task number
+            push task_number
+            push num_format
+            call _scanf
+            add esp, 8
+
+            cmp eax, 1
+            jne invalid_insert
+                
+            ; check if task at selected position is empty
+            mov ebx, [task_number]
+            dec ebx ; index start from 0
+            mov eax, TASK_SIZE
+            mul ebx
+            lea esi, [task_list + eax]
+            cmp byte[esi], 0
+            jne invalid_insert
+            cmp ebx, 0
+            jl invalid_insert
+            cmp ebx, 8
+            jg invalid_insert
+
             push new_task_prompt
             call _printf
             add esp, 4
 
+            push ebx
             push task
             push input_format
             call _scanf
@@ -102,11 +133,29 @@ _main:
 
             call clear_buffer
 
+            ; push ebx
             push task
-            call append_new_task
-            add esp, 4
+            call insert_new_task
+            add esp, 8
 
             jmp main_loop_start
+        
+            no_space:
+                ; display task limit message
+                push task_limit_msg
+                call _printf
+                add esp, 4
+                
+                jmp main_loop_start
+
+            invalid_insert:
+                call clear_buffer
+
+                push invalid_task_number_msg
+                call _printf
+                add esp, 4
+                
+                jmp case_1
 
         case_2:
             ; check if there is no task
@@ -219,10 +268,6 @@ _main:
             push dword[task_number]
             call delete_task
 
-            ; re-arrange tasks after deletion
-            push task_list
-            call rearrange_tasks
-
             jmp main_loop_start
 
             invalid_delete:
@@ -291,27 +336,15 @@ input_choice:
         ; loop back to start of input
         jmp start_input
 
-append_new_task:
+insert_new_task:
     mov ebp, esp
-    
-    ; check if maximum number of task is reached
-    cmp dword[task_count], MAX_TASKS
-    jne proceed_append
 
-    ; display task limit message
-    push task_limit_msg
-    call _printf
-    add esp, 4
-    jmp skip_append
-
-    proceed_append:
-    ; Store task description
-    mov ecx, dword[task_count] ; current number of task
+    mov ecx, [ebp + 8] ; task number to insert to
     mov eax, TASK_SIZE
     mul ecx
     lea edi, [task_list + eax] ; address of task_list as destination
     mov esi, [ebp + 4] ; address of task as source
-    add esi, 1 ; exclude the newline at the beginning
+    add esi, 1 ; to remove newline at the first position
     
     mov ecx, TASK_SIZE
     rep movsb ; mov the content from source to destination
@@ -326,7 +359,6 @@ append_new_task:
     call _printf
     add esp, 4
     
-    skip_append:
     mov esp, ebp
     ret
 
@@ -412,16 +444,5 @@ delete_task:
     call _printf
     add esp, 4
 
-    mov esp, ebp
-    ret
-
-rearrange_tasks:
-    mov ebp, esp
-
-    mov edi, dword[ebp + 4] ; task list to re-arrange
-    
-    ; TODO: implement re-arrange after delete
-
-    check_loop_done:
     mov esp, ebp
     ret
