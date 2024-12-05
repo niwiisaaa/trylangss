@@ -1,4 +1,4 @@
-;˜”*°•.˜”*°• CS 318 - ARCHITECTURE AND ORGANIZATION | LEARNING TASK #3 •°*”˜" •°*”˜"
+;˜”*°•.˜”*°• CS 318 - ARCHITECTURE AND ORGANIZATION | FINAL PROJECT •°*”˜" •°*”˜"
 ;                                  GROUP 6 | BSCS -3A
 
 section .data
